@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-trace-lab"
+version = "0.2.0"
+description = "Local tracing, inspection, and regression checks for Python agent tools."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Huazhe Cheng"}]
+dependencies = []
+
+[project.scripts]
+agent-trace = "agent_trace_lab.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/chzFRA/agent-trace-lab"
+Issues = "https://github.com/chzFRA/agent-trace-lab/issues"
+
+[tool.setuptools.packages.find]
+include = ["agent_trace_lab*"]

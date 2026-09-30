@@ -1,0 +1,33 @@
+name: Tests and recorded traces
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Verify executor contracts
+        run: python -m unittest discover -s tests -v
+      - name: Run synthetic scenarios
+        run: python -m agent_trace_lab run --output artifacts
+      - name: Record real local tool calls
+        run: python -m agent_trace_lab demo --output artifacts/demo
+      - name: Verify recorded candidate
+        run: python -m agent_trace_lab inspect artifacts/demo/candidate.jsonl --max-calls 4 --max-errors 0 --output artifacts/check
+      - name: Compare actual runs
+        run: python -m agent_trace_lab compare artifacts/demo/baseline.jsonl artifacts/demo/candidate.jsonl --output artifacts/comparison
