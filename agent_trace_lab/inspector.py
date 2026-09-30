@@ -66,16 +66,21 @@ def _issues(issues: list) -> str:
 def render_inspection(report: Dict[str, Any]) -> str:
     summary = report['summary']
     header = '<header><div class="eyebrow">AgentTrace Lab / execution inspector</div><h1>' + _escape(summary['name']) + '</h1><p class="muted">Inspect real Python tool calls, their errors, and their parent relationships.</p><span class="pill">' + ('Checks passed' if report['passed'] else 'Checks failed') + '</span> <span class="pill">Run status: ' + _escape(summary['status']) + '</span><p class="call-id">' + _escape(summary['run_id']) + '</p></header>'
+    if summary['status'] == 'ok' and (summary['errors'] or summary['cancelled']):
+        header += '<p class="notice">The application completed, but some tool calls failed or were cancelled. Caught failures remain visible here and can fail your configured checks.</p>'
     metrics = [(summary['tool_calls'], 'Tool calls'), (summary['errors'], 'Tool errors'), (summary['cancelled'], 'Cancelled calls'), ('{:.2f} ms'.format(summary['duration_ms']), 'Run duration')]
     cards = '<div class="cards">' + ''.join('<div class="card"><b>' + _escape(value) + '</b><span>' + label + '</span></div>' for value,label in metrics) + '</div>'
     calls = []
+    by_id = {call['call_id']: call for call in report['calls']}
     for call in report['calls']:
         status = call['status']
         color = status if status in ('ok','error','cancelled','incomplete') else 'incomplete'
         details = {key:value for key,value in call.items() if key not in ('tool','status','duration_ms','depth')}
-        calls.append('<details data-call data-tool="' + _escape(call['tool']) + '" data-status="' + _escape(status) + '"><summary><span class="call-id">#' + _escape(call['start_seq']) + '</span><strong>' + _escape(call['tool']) + '</strong><span class="pill ' + color + '">' + _escape(status) + '</span><span>' + '{:.2f} ms'.format(call['duration_ms']) + '</span><span class="muted">depth ' + _escape(call['depth']) + '</span></summary><div class="call-body"><pre>' + _escape(_json(details)) + '</pre></div></details>')
-    tools = ''.join('<tr><td>' + _escape(tool['name']) + '</td><td>' + str(tool['calls']) + '</td><td>' + str(tool['errors']) + '</td><td>' + '{:.2f}'.format(tool['duration_ms']) + '</td></tr>' for tool in summary['tools'])
-    body = header + cards + '<h2>Checks</h2>' + _issues(report['issues']) + '<h2>Tool breakdown</h2><div class="scroll"><table><thead><tr><th>Tool</th><th>Calls</th><th>Errors</th><th>Inclusive duration (ms)</th></tr></thead><tbody>' + tools + '</tbody></table></div><h2>Call details</h2><div class="toolbar"><label for="search">Filter tools</label><input id="search" placeholder="Search a tool name" type="search"><label for="status">Status</label><select id="status"><option value="">All statuses</option><option>ok</option><option>error</option><option>cancelled</option><option>incomplete</option></select><span id="visible-count" class="muted"></span></div>' + ''.join(calls)
+        parent = by_id.get(call['parent_id'])
+        origin = 'Called by: {} (event #{})'.format(parent['tool'], parent['start_seq']) if parent else ('Top-level tool call' if call['parent_id'] is None else 'Parent not found in this recording')
+        calls.append('<details data-call data-tool="' + _escape(call['tool']) + '" data-status="' + _escape(status) + '"><summary><span class="call-id">#' + _escape(call['start_seq']) + '</span><strong>' + _escape(call['tool']) + '</strong><span class="pill ' + color + '">' + _escape(status) + '</span><span>' + '{:.2f} ms'.format(call['duration_ms']) + '</span><span class="muted">depth ' + _escape(call['depth']) + '</span></summary><div class="call-body"><p>' + _escape(origin) + '</p><pre>' + _escape(_json(details)) + '</pre></div></details>')
+    tools = ''.join('<tr><td>' + _escape(tool['name']) + '</td><td>' + str(tool['calls']) + '</td><td>' + str(tool['errors']) + '</td><td>' + str(tool.get('cancelled',0)) + '</td><td>' + '{:.2f}'.format(tool['duration_ms']) + '</td></tr>' for tool in summary['tools'])
+    body = header + cards + '<h2>Checks</h2>' + _issues(report['issues']) + '<h2>Tool breakdown</h2><div class="scroll"><table><thead><tr><th>Tool</th><th>Calls</th><th>Errors</th><th>Cancelled</th><th>Inclusive duration (ms)</th></tr></thead><tbody>' + tools + '</tbody></table></div><h2>Call details</h2><div class="toolbar"><label for="search">Filter tools</label><input id="search" placeholder="Search a tool name" type="search"><label for="status">Status</label><select id="status"><option value="">All statuses</option><option>ok</option><option>error</option><option>cancelled</option><option>incomplete</option></select><span id="visible-count" class="muted"></span></div>' + ''.join(calls)
     body += '<p class="notice">Arguments, results, and error messages are omitted by default. If capture was explicitly enabled, captured values appear in each call. A successful call does not prove its answer is correct.</p>'
     return _page(str(summary['name']), body)
 
@@ -83,11 +88,20 @@ def render_inspection(report: Dict[str, Any]) -> str:
 def render_comparison(comparison: Dict[str, Any]) -> str:
     before, after = comparison['before'], comparison['after']
     rows = []
-    for key,label in (('tool_calls','Tool calls'),('errors','Tool errors'),('duration_ms','Duration (ms)')):
+    for key,label in (('tool_calls','Tool calls'),('errors','Tool errors'),('cancelled','Cancelled calls'),('duration_ms','Duration (ms)')):
         left,right = before[key],after[key]
         delta = right-left
         rows.append('<tr><th>' + label + '</th><td>' + _escape(round(left,3)) + '</td><td>' + _escape(round(right,3)) + '</td><td>' + _escape('{:+.3f}'.format(delta) if key=='duration_ms' else '{:+d}'.format(delta)) + '</td></tr>')
-    body = '<header><div class="eyebrow">AgentTrace Lab / run comparison</div><h1>' + ('Regression checks passed' if comparison['passed'] else 'Regression detected') + '</h1><p class="muted">' + _escape(before['name']) + ' → ' + _escape(after['name']) + '</p></header><h2>Observed changes</h2><div class="scroll"><table><thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Change</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div><h2>Configured checks</h2>' + _issues(comparison['issues']) + '<p class="notice">Compare runs with the same task and inputs. Timing varies with environment and workload; duration checking is opt-in. These checks do not measure answer quality, tokens, or model cost.</p>'
+    tool_rows = []
+    for tool in comparison.get('per_tool_deltas', []):
+        cells = '<th>' + _escape(tool['name']) + '</th>'
+        for key in ('calls','errors','cancelled'):
+            cells += '<td>{} → {} ({:+d})</td>'.format(tool['before'][key],tool['after'][key],tool['deltas'][key])
+        cells += '<td>{:.3f} → {:.3f}</td>'.format(tool['before']['duration_ms'],tool['after']['duration_ms'])
+        tool_rows.append('<tr>' + cells + '</tr>')
+    per_tool = '<h2>Which tools changed?</h2><div class="scroll"><table><thead><tr><th>Tool</th><th>Calls</th><th>Errors</th><th>Cancelled</th><th>Inclusive duration (ms)</th></tr></thead><tbody>' + ''.join(tool_rows) + '</tbody></table></div>'
+    mode = 'Count, error, and cancellation tolerances are checked both in total and per tool.' if comparison.get('per_tool') else 'Checks apply to totals. Use --per-tool to also catch increases hidden by decreases in other tools.'
+    body = '<header><div class="eyebrow">AgentTrace Lab / run comparison</div><h1>' + ('Regression checks passed' if comparison['passed'] else 'Regression detected') + '</h1><p class="muted">' + _escape(before['name']) + ' → ' + _escape(after['name']) + '</p></header><h2>Observed changes</h2><div class="scroll"><table><thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Change</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>' + per_tool + '<p class="notice">' + mode + '</p><h2>Configured checks</h2>' + _issues(comparison['issues']) + '<p class="notice">Compare runs with the same task and inputs. Timing varies with environment and workload; duration checking is opt-in. These checks do not measure answer quality, tokens, or model cost.</p>'
     return _page('Run comparison',body)
 
 

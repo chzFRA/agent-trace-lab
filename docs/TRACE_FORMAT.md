@@ -6,7 +6,8 @@ complete JSON object per event, flushed after each event. A single session owns
 one file; files are created exclusively unless `overwrite=True` is explicit.
 `capture_values` and `overwrite` require actual booleans; strings such as
 `"false"` and integers are rejected. Run and tool names must be nonempty strings
-of at most 256 Unicode characters, including a decorated function's default name.
+of at most 256 valid Unicode characters, including a decorated function's default name.
+Unpaired Unicode surrogates in names are rejected; captured strings replace them.
 
 ```python
 from agent_trace_lab.tracing import TraceSession
@@ -90,3 +91,34 @@ writes. Even warning filters configured to raise will not replace a tool result 
 its original exception. A run with logging errors must be treated as incomplete,
 even if its tool calls succeeded. JSONL flushing is not an `fsync` durability
 guarantee; a partial final line can occur if storage fails during a write.
+
+The recorder and reader share a 1 MiB line limit and a 20 MiB file limit. Once a
+write would exceed a limit, `TraceLimitError` is recorded in `logging_errors`,
+further recording stops, and tools continue with their original outcomes. This
+leaves an incomplete run rather than a complete-looking file the reader rejects
+for size. Use one session per task; there is no automatic log rotation. A close
+error after a successfully flushed `run_end` may leave a valid-looking file: an
+offline audit cannot reconstruct that failure, so check the runtime diagnostics.
+If initialization and cleanup both fail, the initialization exception is preserved.
+
+## Import and audit rules
+
+Imported JSON is limited to 32 levels including the event object. Strings and keys
+must contain valid Unicode; numbers must be finite. The audit rejects contradictory
+records: a tool duration exceeding the whole run, or arguments/results/error
+messages present when `capture_values` is false. These checks detect inconsistency,
+not authenticity: traces are unsigned and can be edited.
+
+Handled errors and cancellations are counts until `max_errors` / `max_cancelled`
+is set. A failed application run or structurally incomplete trace always fails.
+Cancellation is distinct from error, and a caught cancellation need not fail the
+whole application.
+
+Comparison outputs include `per_tool_deltas` with named-tool `before`, `after`,
+and `deltas` objects for `calls`, `errors`, `cancelled`, and `duration_ms`. A tool
+absent from either run has zero metrics on that side. Run totals are always
+checked; `per_tool=True` applies the same count/error/cancellation tolerances to
+each named tool too. The optional duration ratio applies only to total run time.
+Renaming or adding a tool may intentionally fail a per-tool call budget; review
+the report before adjusting tolerances. Comparisons do not verify matching inputs,
+result correctness, or whether a repeated call was logically unnecessary.

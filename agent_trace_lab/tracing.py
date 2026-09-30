@@ -12,6 +12,8 @@ import time
 import uuid
 import warnings
 
+from .limits import MAX_LINE_BYTES, MAX_TRACE_BYTES
+
 
 _SENSITIVE = re.compile(r"api.?key|token|authorization|password|secret|credential|private.?key", re.I)
 _BEARER = re.compile(r"\bBearer\s+[^\s,;\"']+", re.I)
@@ -26,10 +28,15 @@ def _validate_name(value, label):
         raise TypeError("{} name must be a nonempty string".format(label))
     if len(value) > 256:
         raise ValueError("{} name must be at most 256 characters".format(label))
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError("{} name must contain valid Unicode characters".format(label)) from exc
 
 
 def _text(value):
     """Best-effort credential masking; deliberately not a PII classifier."""
+    value = value.encode("utf-8", errors="replace").decode("utf-8")
     value = _BEARER.sub("Bearer [REDACTED]", value)
     value = _ASSIGNMENT.sub(lambda m: m.group(1) + "=[REDACTED]", value)
     return value if len(value) <= 256 else value[:256] + "…[truncated]"
@@ -76,6 +83,10 @@ def _captured_summary(value):
     return summary
 
 
+class TraceLimitError(RuntimeError):
+    """Recording reached a supported file-size bound; tool execution continues."""
+
+
 class TraceSession:
     """Record one run in JSONL. Join/await all decorated calls before exiting.
 
@@ -100,6 +111,7 @@ class TraceSession:
         self._active = False
         self._entered = False
         self._seq = 0
+        self._bytes = 0
         self._calls = 0
         self._failures = []
         self._file = None
@@ -120,7 +132,10 @@ class TraceSession:
             try:
                 self._write("run_start", name=self.name, capture_values=self.capture_values)
             except BaseException:
-                self._file.close()
+                try:
+                    self._file.close()
+                except Exception as cleanup_error:
+                    self._failure(cleanup_error)
                 raise
             self._active = True
         return self
@@ -153,8 +168,13 @@ class TraceSession:
         event = {"schema_version": 1, "type": event_type, "run_id": self.run_id,
                  "seq": self._seq, "timestamp": datetime.now(timezone.utc).isoformat()}
         event.update(fields)
-        self._file.write(json.dumps(event, ensure_ascii=True, allow_nan=False) + "\n")
+        encoded = json.dumps(event, ensure_ascii=True, allow_nan=False) + "\n"
+        size = len(encoded.encode("utf-8"))
+        if size > MAX_LINE_BYTES or self._bytes + size > MAX_TRACE_BYTES:
+            raise TraceLimitError("Trace size limit reached; start a new session for the next task")
+        self._file.write(encoded)
         self._file.flush()
+        self._bytes += size
 
     def _failure(self, error):
         self._failures.append(type(error).__name__)

@@ -37,6 +37,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     inspect_parser.add_argument('--output', type=Path, default=Path('artifacts/inspection'))
     inspect_parser.add_argument('--max-calls', type=int)
     inspect_parser.add_argument('--max-errors', type=int)
+    inspect_parser.add_argument('--max-cancelled', type=int)
     inspect_parser.add_argument('--max-duration-ms', type=float)
     compare_parser = subparsers.add_parser('compare', help='Compare two recorded runs and exit nonzero on configured regressions')
     compare_parser.add_argument('before', type=Path)
@@ -44,6 +45,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     compare_parser.add_argument('--output', type=Path, default=Path('artifacts/comparison'))
     compare_parser.add_argument('--max-extra-calls', type=int, default=0)
     compare_parser.add_argument('--max-extra-errors', type=int, default=0)
+    compare_parser.add_argument('--max-extra-cancelled', type=int, default=0)
+    compare_parser.add_argument('--per-tool', action='store_true',
+                                help='Also apply count/error/cancellation tolerances to each tool name')
     compare_parser.add_argument('--max-duration-ratio', type=float)
     demo_parser = subparsers.add_parser('demo', help='Record real local file calls: baseline, optimized candidate, and a handled error')
     demo_parser.add_argument('--output', type=Path, default=Path('artifacts/demo'))
@@ -52,11 +56,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.command == 'inspect':
             _protect_inputs([args.trace],args.output)
             report = audit_trace(load_trace(args.trace), max_calls=args.max_calls,
-                                 max_errors=args.max_errors,max_duration_ms=args.max_duration_ms)
+                                 max_errors=args.max_errors,max_cancelled=args.max_cancelled,
+                                 max_duration_ms=args.max_duration_ms)
             write_inspection(report,args.output)
-            print('{} | {} calls | {} tool errors | run {}'.format(
+            print('{} | {} calls | {} tool errors | {} cancelled | run {}'.format(
                 'PASS' if report['passed'] else 'FAIL', report['summary']['tool_calls'],
-                report['summary']['errors'],report['summary']['status']))
+                report['summary']['errors'],report['summary']['cancelled'],report['summary']['status']))
             for issue in report['issues']:
                 print('{}: {}'.format(issue['code'],issue['message']))
             print('Report: {}'.format((args.output/'report.html').resolve()))
@@ -66,10 +71,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             before = audit_trace(load_trace(args.before))
             after = audit_trace(load_trace(args.after))
             report = compare_traces(before,after,max_extra_calls=args.max_extra_calls,
-                                    max_extra_errors=args.max_extra_errors,max_duration_ratio=args.max_duration_ratio)
+                                    max_extra_errors=args.max_extra_errors,
+                                    max_extra_cancelled=args.max_extra_cancelled,
+                                    per_tool=args.per_tool,max_duration_ratio=args.max_duration_ratio)
             write_inspection(report,args.output,comparison=True)
             print('{} | call delta {:+d} | error delta {:+d}'.format(
                 'PASS' if report['passed'] else 'FAIL',report['deltas']['tool_calls'],report['deltas']['errors']))
+            for tool in report['per_tool_deltas']:
+                changes = tool['deltas']
+                if any(changes[key] for key in ('calls', 'errors', 'cancelled')):
+                    print('Tool {}: calls {:+d}, errors {:+d}, cancelled {:+d}'.format(
+                        tool['name'], changes['calls'], changes['errors'], changes['cancelled']))
             for issue in report['issues']:
                 print('{}: {}'.format(issue['code'],issue['message']))
             print('Report: {}'.format((args.output/'report.html').resolve()))

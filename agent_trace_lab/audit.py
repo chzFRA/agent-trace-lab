@@ -6,8 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
-MAX_LINE_BYTES = 1024 * 1024
-MAX_TRACE_BYTES = 20 * 1024 * 1024
+from .limits import MAX_JSON_DEPTH, MAX_LINE_BYTES, MAX_TRACE_BYTES
 _REQUIRED = {
     "run_start": {"name": str, "capture_values": bool},
     "tool_start": {"call_id": str, "tool": str},
@@ -16,18 +15,29 @@ _REQUIRED = {
 }
 
 
-def _finite_json(value):
-    if value is None or type(value) in (str, bool, int):
+def _finite_json(value, depth=0):
+    if value is None or type(value) in (bool, int):
+        return
+    if type(value) is str:
+        try:
+            value.encode("utf-8")
+        except UnicodeError as exc:
+            raise ValueError("strings must not contain unpaired Unicode surrogates") from exc
         return
     if type(value) is float and math.isfinite(value):
         return
     if isinstance(value, list):
+        if depth >= MAX_JSON_DEPTH:
+            raise ValueError("JSON nesting exceeds {} levels".format(MAX_JSON_DEPTH))
         for item in value:
-            _finite_json(item)
+            _finite_json(item, depth + 1)
         return
     if isinstance(value, dict) and all(isinstance(k, str) for k in value):
-        for item in value.values():
-            _finite_json(item)
+        if depth >= MAX_JSON_DEPTH:
+            raise ValueError("JSON nesting exceeds {} levels".format(MAX_JSON_DEPTH))
+        for key, item in value.items():
+            _finite_json(key, depth + 1)
+            _finite_json(item, depth + 1)
         return
     raise ValueError("values must be finite JSON data")
 
@@ -111,12 +121,13 @@ def load_trace(path):
     return events
 
 
-def audit_trace(events, *, max_calls=None, max_errors=None, max_duration_ms=None):
+def audit_trace(events, *, max_calls=None, max_errors=None, max_cancelled=None, max_duration_ms=None):
     """Audit structure, failed runs, and optional budgets.
 
     Handled tool errors are measurements until an explicit error budget is set.
     """
     for value, name, integer in ((max_calls, "max_calls", True), (max_errors, "max_errors", True),
+                                  (max_cancelled, "max_cancelled", True),
                                   (max_duration_ms, "max_duration_ms", False)):
         if value is not None:
             _number(value, name, integer)
@@ -178,9 +189,18 @@ def audit_trace(events, *, max_calls=None, max_errors=None, max_duration_ms=None
         issue("missing_run_end", "Trace has no run_end; capture may be incomplete.")
     elif ends[0]["status"] == "error":
         issue("run_failed", "The recorded application run ended with an error.")
+    if starts and not starts[0]["capture_values"]:
+        for event in events:
+            if ((event["type"] == "tool_start" and "arguments" in event) or
+                    (event["type"] == "tool_end" and ("result" in event or
+                     (isinstance(event.get("error"), dict) and "message" in event["error"])))):
+                issue("capture_policy_mismatch", "Captured values are present despite capture_values=false.",
+                      event["call_id"])
     for call_id, call in calls.items():
         if "end_seq" not in call:
             issue("missing_call_end", "Tool call has no tool_end.", call_id)
+        elif ends and call["duration_ms"] > ends[0]["duration_ms"]:
+            issue("tool_duration_exceeds_run", "A tool duration exceeds the recorded whole-run duration.", call_id)
         parent = calls.get(call["parent_id"])
         if call["parent_id"] is not None and parent is None:
             issue("unresolved_parent", "parent_id does not identify a recorded tool call.", call_id)
@@ -209,9 +229,10 @@ def audit_trace(events, *, max_calls=None, max_errors=None, max_duration_ms=None
     counts = Counter(call["status"] for call in calls.values())
     for call_id, call in calls.items():
         call["depth"] = depths[call_id]
-        tool = tools.setdefault(call["tool"], dict(name=call["tool"], calls=0, errors=0, duration_ms=0))
+        tool = tools.setdefault(call["tool"], dict(name=call["tool"], calls=0, errors=0, cancelled=0, duration_ms=0))
         tool["calls"] += 1
         tool["errors"] += call["status"] == "error"
+        tool["cancelled"] += call["status"] == "cancelled"
         tool["duration_ms"] += call["duration_ms"]
         _number(tool["duration_ms"], "aggregate duration_ms for tool {!r}".format(call["tool"]))
     summary = dict(run_id=run_id, name=starts[0]["name"] if starts else "Unknown run",
@@ -221,6 +242,7 @@ def audit_trace(events, *, max_calls=None, max_errors=None, max_duration_ms=None
                    max_depth=max(depths.values(), default=0), tools=[tools[name] for name in sorted(tools)])
     for value, key, code in ((max_calls, "tool_calls", "max_calls_exceeded"),
                              (max_errors, "errors", "max_errors_exceeded"),
+                             (max_cancelled, "cancelled", "max_cancelled_exceeded"),
                              (max_duration_ms, "duration_ms", "max_duration_exceeded")):
         if value is not None and summary[key] > value:
             issue(code, "{} {} exceeds budget {}.".format(key, summary[key], value))
@@ -229,28 +251,60 @@ def audit_trace(events, *, max_calls=None, max_errors=None, max_duration_ms=None
 
 
 def compare_traces(before_report, after_report, *, max_extra_calls=0, max_extra_errors=0,
-                   max_duration_ratio=None):
+                   max_extra_cancelled=0, max_duration_ratio=None, per_tool=False):
     """Compare recorded measurements. Duration gates are opt-in and do not infer cause."""
     _number(max_extra_calls, "max_extra_calls", True)
     _number(max_extra_errors, "max_extra_errors", True)
+    _number(max_extra_cancelled, "max_extra_cancelled", True)
+    if type(per_tool) is not bool:
+        raise ValueError("per_tool must be a boolean")
     if max_duration_ratio is not None:
         _number(max_duration_ratio, "max_duration_ratio")
+    tool_maps = []
     for report in (before_report, after_report):
         if not isinstance(report, dict) or type(report.get("passed")) is not bool or not isinstance(report.get("summary"), dict):
             raise ValueError("comparison inputs must be audit reports")
-        for key in ("tool_calls", "errors", "duration_ms"):
+        for key in ("tool_calls", "errors", "cancelled", "duration_ms"):
             _number(report["summary"].get(key), key, key != "duration_ms")
+        if not isinstance(report["summary"].get("tools"), list):
+            raise ValueError("comparison inputs must contain per-tool summaries")
+        tool_map = {}
+        for tool in report["summary"]["tools"]:
+            if not isinstance(tool, dict) or type(tool.get("name")) is not str or not tool["name"] or tool["name"] in tool_map:
+                raise ValueError("per-tool summaries require unique nonempty tool names")
+            values = {key: tool.get(key, 0 if key == "cancelled" else None)
+                      for key in ("calls", "errors", "cancelled", "duration_ms")}
+            for key, value in values.items():
+                _number(value, "tool " + key, key != "duration_ms")
+            tool_map[tool["name"]] = values
+        tool_maps.append(tool_map)
     before, after = before_report["summary"], after_report["summary"]
-    deltas = {key: after[key] - before[key] for key in ("tool_calls", "errors", "duration_ms")}
+    deltas = {key: after[key] - before[key] for key in ("tool_calls", "errors", "cancelled", "duration_ms")}
+    per_tool_deltas = []
+    empty = dict(calls=0, errors=0, cancelled=0, duration_ms=0)
+    for name in sorted(set(tool_maps[0]) | set(tool_maps[1])):
+        left, right = dict(tool_maps[0].get(name, empty)), dict(tool_maps[1].get(name, empty))
+        per_tool_deltas.append(dict(name=name, before=left, after=right,
+                                    deltas={key: right[key] - left[key] for key in empty}))
     issues = []
     for label, report in (("before", before_report), ("after", after_report)):
         if not report["passed"]:
             issues.append(dict(code=label + "_invalid", severity="error", message=label + " run did not pass its audit."))
-    for key, allowed in (("tool_calls", max_extra_calls), ("errors", max_extra_errors)):
+    for key, allowed in (("tool_calls", max_extra_calls), ("errors", max_extra_errors),
+                         ("cancelled", max_extra_cancelled)):
         if deltas[key] > allowed:
             issues.append(dict(code=key + "_regression", severity="error",
                                message="{} increased by {}; allowed {}.".format(key, deltas[key], allowed)))
+    if per_tool:
+        for tool in per_tool_deltas:
+            for key, allowed in (("calls", max_extra_calls), ("errors", max_extra_errors),
+                                 ("cancelled", max_extra_cancelled)):
+                if tool["deltas"][key] > allowed:
+                    issues.append(dict(code="per_tool_" + key + "_regression", severity="error", tool=tool["name"],
+                                       message="Tool {!r}: {} increased by {}; allowed {}.".format(
+                                           tool["name"], key, tool["deltas"][key], allowed)))
     if max_duration_ratio is not None and after["duration_ms"] > before["duration_ms"] * max_duration_ratio:
         issues.append(dict(code="duration_regression", severity="error",
                            message="Measured duration exceeds the configured ratio; timing alone does not establish cause."))
-    return dict(schema_version=1, before=before, after=after, deltas=deltas, issues=issues, passed=not issues)
+    return dict(schema_version=1, before=before, after=after, deltas=deltas,
+                per_tool=per_tool, per_tool_deltas=per_tool_deltas, issues=issues, passed=not issues)

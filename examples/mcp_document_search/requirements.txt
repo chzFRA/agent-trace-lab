@@ -1,0 +1,2 @@
+# Optional example only. AgentTrace Lab's core remains dependency-free.
+mcp==2.2.0

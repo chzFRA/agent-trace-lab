@@ -4,7 +4,7 @@
 
 AgentTrace Lab 是用来练习这个问题的本地 Python 项目。它把工具执行过程变成可以检查、测试和比较的记录。运行本仓库的离线示例不需要模型 API 密钥。先用确定的输入检查工程行为，再接入模型，能帮助你分清工具代码的问题和模型决策的问题。
 
-下面四个项目是上游学习资源，作者和维护者属于各自社区；它们不是 chzFRA 的原创项目，也不是本仓库已完成的集成。练习、适配器和实验记录才是可以逐步在本仓库积累的贡献。信息核对日期：2026-09-30。实现练习时应记录实际使用的依赖版本。
+下面四个项目是上游学习资源，作者和维护者属于各自社区；它们不是 chzFRA 的原创项目。本仓库已实现一个使用官方 MCP SDK 的本地文档检索集成示例；OpenAI Agents SDK、LangGraph 和 Inspect AI 尚未集成。文档工具、适配器与可复现实验才是本仓库逐步积累的贡献。上游资料核对日期：2026-09-30；本地实现状态更新：2026-10-01。实现练习时应记录实际使用的依赖版本。
 
 ## 先选一个问题，再读相关代码
 
@@ -12,7 +12,7 @@ AgentTrace Lab 是用来练习这个问题的本地 Python 项目。它把工具
 | --- | --- | --- |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | Agent 循环、工具调用、交接和 tracing | 设计一个把 SDK 工具事件转换为本地轨迹的可选适配器 |
 | [LangGraph](https://github.com/langchain-ai/langgraph) | 状态、检查点、恢复和人工介入 | 观察恢复前后哪些节点重新执行，以及是否重复产生副作用 |
-| [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) | 工具的标准接口、客户端与服务端 | 用本地客户端调用真实 MCP 工具，再记录成功与失败 |
+| [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) | 工具的标准接口、客户端与服务端 | 已有真实 stdio 文档检索示例，可学习错误标记适配与调用回归检查 |
 | [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) | 数据集、执行过程、评分器和评估日志 | 把“调用行为正确”和“任务回答正确”分开评估 |
 
 核对时四个仓库的核心代码许可证均为 MIT：[Agents SDK](https://github.com/openai/openai-agents-python/blob/main/LICENSE)、[LangGraph](https://github.com/langchain-ai/langgraph/blob/main/LICENSE)、[MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk/blob/main/LICENSE)、[Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE)。复用代码时保留对应的许可证和来源；依赖、服务与数据另看各自条款。
@@ -41,11 +41,13 @@ AgentTrace Lab 是用来练习这个问题的本地 Python 项目。它把工具
 
 先读官方 [Python SDK](https://github.com/modelcontextprotocol/python-sdk) 和 [服务端教程](https://modelcontextprotocol.io/docs/develop/build-server)。SDK 提供客户端与服务端能力，用于暴露和调用 tools、resources 等接口。请按所选 SDK 版本使用文档，避免混用不同主版本的示例。
 
-**练习：**实现一个本地 `search_notes` 服务，只读取项目内明确指定的示例笔记；用 Python 客户端执行正常查询、空结果、错误参数和服务端异常四种请求。把客户端观察到的工具请求与响应接到本地轨迹中。这个协议实验不需要 LLM。
+**先运行已实现的案例：**按 [MCP 文档检索示例](../examples/mcp_document_search/README.md)建立独立环境并运行 `verify`。示例使用官方 SDK **2.2.0**，通过真实 stdio 客户端与服务端子进程调用 `search_documents` 和 `read_document`；本地 **28 项验收通过**，无需模型或密钥。再运行示例中的 `search "run_start" --root docs` 命令，检查它在本项目文档中找到的路径、行号与摘录。
 
-**验收：**确认工具名与参数 schema 可以被发现；将协议错误、工具执行错误和空结果分开记录；服务端关闭时客户端能给出明确失败结果。不要把“没有搜到内容”当作连接故障。
+**解释现有验收：**读懂工具发现与参数 schema；比较正常检索、空结果、重复读取和缺失文件的轨迹。重点解释为什么 MCP 返回 `isError=true` 时，原始 Python 调用可以不抛异常，以及为什么 [显式适配器](../examples/mcp_document_search/adapter.py)要在被追踪的函数内抛出 `MCPToolError`。重复读取使调用数从 2 增到 3，比较命令应退出 `1`；错误预算为零时，适配后的工具失败也应使检查失败。这些预期失败是验收通过的条件，空搜索结果则保持成功。
 
-**可公开成果：**一个小型 MCP 工具示例、一组集成测试和一页排障说明。遇到上游缺陷时，附 SDK 版本及最小 client/server 代码。
+**扩展练习：**在明确指定的非敏感目录加入自己的文档，写出固定查询和预期命中；再增加服务端意外退出、传输错误与恢复的验收。这些关闭/传输故障测试尚未实现，应与现有工具错误案例区分。现有示例已检查相对路径越界、绝对路径、符号链接、隐藏文件、文件大小和编码等边界；它是受限的本地例子，不是任意 MCP 服务的通用适配器。
+
+**可公开成果：**基于已有代码和 [验证记录](../examples/mcp_document_search/VERIFICATION.md)，写一篇“为什么 RPC 成功不代表工具成功”的复现说明，再附上自己的扩展实验。遇到上游缺陷时，附 SDK 版本及最小 client/server 代码；不要把本地集成验收描述为真实用户反馈。
 
 ### 4. Inspect AI：给改进留下证据
 
@@ -65,7 +67,7 @@ AgentTrace Lab 是用来练习这个问题的本地 Python 项目。它把工具
 | --- | --- | --- |
 | 第 1 周 | 运行本仓库示例，手动追踪一个成功案例和一个失败案例 | 复现命令、两份轨迹解读、一个你能解释的测试 |
 | 第 2 周 | 为自己的只读 Python 工具记录调用，学习 Agents SDK 的事件结构 | 三类输入、字段对应表、日志不包含密钥的检查 |
-| 第 3 周 | 写一个本地 MCP 服务与客户端 | 四类集成案例、确定的依赖版本、排障说明 |
+| 第 3 周 | 运行并解释已有 MCP 案例，再用自己的文档扩展 | `isError` 适配对照、固定查询与预期命中、确定的依赖版本 |
 | 第 4 周 | 用 LangGraph 做一次中断恢复实验 | 节点执行计数、重复副作用的回归测试 |
 | 第 5 周 | 参考 Inspect 建立固定案例集，完成一次版本比较 | 数据来源、评分标准、完整失败样例和结果表 |
 | 第 6 周 | 选择一个真实发现，整理成别人能复现的 issue、文档改进或版本发布 | 复现步骤、代码、测试、限制；按上游贡献政策选择提交形式 |
@@ -77,7 +79,7 @@ python3 -m agent_trace_lab demo --output artifacts/demo
 python3 -m unittest discover -s tests -v
 ```
 
-本仓库当前能运行的内容以 [README](../README.md) 为准；上面的 SDK、LangGraph、MCP 与 Inspect 集成练习属于后续工作。
+本仓库当前能运行的内容以 [README](../README.md) 为准。真实 MCP 集成的安装和验收入口见 [示例 README](../examples/mcp_document_search/README.md)；OpenAI Agents SDK、LangGraph、Inspect AI 集成及上述 MCP 扩展练习仍属于后续工作。
 
 ## 让主页展示真实积累
 

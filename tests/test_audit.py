@@ -27,7 +27,7 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report["summary"]["max_depth"], 2)
         self.assertEqual(report["summary"]["tool_calls"], 2)
         self.assertEqual(report["calls"][1]["end_seq"], 4)
-        self.assertEqual(report["summary"]["tools"][0], dict(name="fetch", calls=1, errors=0, duration_ms=2))
+        self.assertEqual(report["summary"]["tools"][0], dict(name="fetch", calls=1, errors=0, cancelled=0, duration_ms=2))
 
     def test_errors_are_measurements_until_budgeted(self):
         self.assertTrue(audit_trace(trace(True))["passed"])
@@ -91,7 +91,7 @@ class AuditTests(unittest.TestCase):
         self.assertFalse(compare_traces(before, after)["passed"])
         self.assertTrue(compare_traces(before, after, max_extra_errors=1)["passed"])
         self.assertFalse(compare_traces(before, after, max_extra_errors=1, max_duration_ratio=2)["passed"])
-        self.assertEqual(compare_traces(before, after)["deltas"], dict(tool_calls=0, errors=1, duration_ms=12))
+        self.assertEqual(compare_traces(before, after)["deltas"], dict(tool_calls=0, errors=1, cancelled=0, duration_ms=12))
         bad = audit_trace(trace()[:-1])
         self.assertIn("before_invalid", [x["code"] for x in compare_traces(bad, before)["issues"]])
         empty = trace()[::5]

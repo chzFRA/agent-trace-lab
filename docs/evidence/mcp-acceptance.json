@@ -1,0 +1,238 @@
+{
+  "purpose": "Real local stdio integration; no model or external user validation",
+  "environment": {
+    "python": "3.12.14",
+    "mcp": "2.2.0",
+    "agent_trace_lab": "0.3.0",
+    "transport": "stdio subprocess",
+    "protocol_version": "2026-07-28"
+  },
+  "checks": [
+    {
+      "name": "real MCP tool discovery",
+      "passed": true,
+      "observed": [
+        "read_document",
+        "search_documents"
+      ]
+    },
+    {
+      "name": "query JSON schema",
+      "passed": true,
+      "observed": {
+        "maxLength": 240,
+        "minLength": 1,
+        "title": "Query",
+        "type": "string"
+      }
+    },
+    {
+      "name": "known query finds expected document",
+      "passed": true,
+      "observed": {
+        "query": "retry attempts",
+        "matches": [
+          {
+            "path": "reliability.md",
+            "line": 3,
+            "excerpt": "Retry attempts should have an explicit budget and a recorded outcome."
+          }
+        ],
+        "matched_documents": 1
+      }
+    },
+    {
+      "name": "real document read returns expected evidence",
+      "passed": true,
+      "observed": "reliability.md"
+    },
+    {
+      "name": "baseline trace recording completed",
+      "passed": true,
+      "observed": []
+    },
+    {
+      "name": "baseline budget",
+      "passed": true,
+      "observed": {
+        "run_id": "9dcb769c04d144e29561611e9b275955",
+        "name": "MCP baseline",
+        "status": "ok",
+        "tool_calls": 2,
+        "errors": 0,
+        "cancelled": 0,
+        "duration_ms": 37.9694160001236,
+        "max_depth": 1,
+        "tools": [
+          {
+            "name": "mcp.read_document",
+            "calls": 1,
+            "errors": 0,
+            "cancelled": 0,
+            "duration_ms": 1.7552080025780015
+          },
+          {
+            "name": "mcp.search_documents",
+            "calls": 1,
+            "errors": 0,
+            "cancelled": 0,
+            "duration_ms": 35.73737500119023
+          }
+        ]
+      }
+    },
+    {
+      "name": "duplicate read has same content",
+      "passed": true,
+      "observed": "reliability.md"
+    },
+    {
+      "name": "extra MCP call fails regression check",
+      "passed": true,
+      "observed": {
+        "deltas": {
+          "tool_calls": 1,
+          "errors": 0,
+          "cancelled": 0,
+          "duration_ms": -34.84083299554186
+        },
+        "issues": [
+          {
+            "code": "tool_calls_regression",
+            "severity": "error",
+            "message": "tool_calls increased by 1; allowed 0."
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty results remain a successful tool call",
+      "passed": true,
+      "observed": {
+        "query": "unfindablequokkas",
+        "matches": [],
+        "matched_documents": 0
+      }
+    },
+    {
+      "name": "server tool error crosses MCP as isError",
+      "passed": true,
+      "observed": {
+        "isError": true
+      }
+    },
+    {
+      "name": "raw RPC wrapper misses semantic tool failure",
+      "passed": true,
+      "observed": {
+        "trace_errors": 0,
+        "explanation": "RPC returned normally despite isError=true"
+      }
+    },
+    {
+      "name": "adapter makes tool error observable",
+      "passed": true,
+      "observed": {
+        "trace_errors": 1,
+        "error_types": [
+          "MCPToolError"
+        ]
+      }
+    },
+    {
+      "name": "blank query rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "wrong query type rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "oversized query rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "invalid result limit rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "parent traversal rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "absolute path rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "symlink escape rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "symlink ancestor rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "hidden document rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "unsupported file type rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "oversized document rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "invalid UTF-8 rejected across MCP",
+      "passed": true,
+      "observed": "MCPToolError"
+    },
+    {
+      "name": "all rejected calls recorded",
+      "passed": true,
+      "observed": {
+        "calls": 12,
+        "errors": 12
+      }
+    },
+    {
+      "name": "trace capture omits document contents and inputs",
+      "passed": true,
+      "observed": {
+        "trace_files_checked": 6,
+        "captured_value_events": 0
+      }
+    },
+    {
+      "name": "CLI exposes regression to CI",
+      "passed": true,
+      "observed": {
+        "exit_code": 1,
+        "stdout": "FAIL | call delta +1 | error delta +0\nTool mcp.read_document: calls +1, errors +0, cancelled +0\ntool_calls_regression: tool_calls increased by 1; allowed 0.\nReport: <local-output>/cli-comparison/report.html",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "reports include portable HTML",
+      "passed": true,
+      "observed": [
+        "comparison/report.html",
+        "adapter-error/report.html"
+      ]
+    }
+  ],
+  "passed": true,
+  "publication_note": "Copy of local acceptance evidence; local report directory redacted from CLI stdout."
+}

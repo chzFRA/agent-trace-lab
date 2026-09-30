@@ -4,7 +4,7 @@
 
 Record real sync/async function calls, inspect their parent relationships, and compare runs in CI. Portable HTML reports, Python 3.9+, no runtime dependencies, no account or model key required.
 
-[中文学习路线](docs/LEARNING_PATH.zh-CN.md) · [Trace format](docs/TRACE_FORMAT.md) · [Contributing](CONTRIBUTING.md)
+[中文上手教程](docs/QUICKSTART.zh-CN.md) · [Real MCP example](examples/mcp_document_search/README.md) · [Validation evidence](docs/VALIDATION.md) · [Trace format](docs/TRACE_FORMAT.md)
 
 ## Why this exists
 
@@ -12,11 +12,15 @@ After changing an agent, it may call a tool twice, swallow an exception, or spen
 
 This is a tool-observability utility, not an autonomous agent or an LLM benchmark. It does not score answer quality, infer token costs, prevent duplicate side effects, or stop running tools. Budgets are **post-run checks**.
 
+Use it when you own Python tools and need to find where a run failed or what changed after an edit. You must instrument the functions your application actually calls. It cannot inspect ChatGPT conversations or uninstrumented framework internals.
+
 ## Try it
 
-From the repository root:
+With Python 3.9+, download the code and run a no-dependency example:
 
 ```bash
+git clone https://github.com/chzFRA/agent-trace-lab.git
+cd agent-trace-lab
 python3 -m agent_trace_lab demo --output artifacts/demo
 ```
 
@@ -35,7 +39,7 @@ python3 -m agent_trace_lab inspect artifacts/demo/candidate.jsonl \
 
 # Candidate has one fewer call: passes.
 python3 -m agent_trace_lab compare artifacts/demo/baseline.jsonl \
-  artifacts/demo/candidate.jsonl --output artifacts/comparison
+  artifacts/demo/candidate.jsonl --per-tool --output artifacts/comparison
 
 # Reverse the comparison: an extra call causes exit code 1.
 python3 -m agent_trace_lab compare artifacts/demo/candidate.jsonl \
@@ -81,8 +85,8 @@ Use a new trace filename for each run, or explicitly set `overwrite=True`. Creat
 | Actual execution timing | Per-call and whole-run durations measured with a monotonic clock |
 | Sync and async tools | Success, errors, cancellation, and nested parent IDs |
 | Structural audit | Missing ends, reused IDs, orphan events, invalid sequences, mixed runs, and parent cycles |
-| Explicit budgets | Maximum calls, errors, or total duration; violations produce a failing exit code |
-| Run comparison | Count/error changes and optional duration-ratio checks |
+| Explicit budgets | Maximum calls, errors, cancellations, or total duration; violations produce a failing exit code |
+| Run comparison | Changes by named tool; optional per-tool checks catch regressions hidden by unchanged totals |
 | Portable reports | Filterable HTML and machine-readable JSON, without remote resources |
 
 Durations include nested calls; do not sum them as exclusive CPU time. Plain threads do not automatically inherit parent context. Async context follows Python's `contextvars` behavior.
@@ -93,7 +97,7 @@ Arguments, results, and exception messages are **omitted by default**. Run/tool 
 
 Use the boolean `capture_values=True` only when you want bounded value summaries. Common credential keys/patterns are masked, but this is not a general secret or personal-data detector. Review captures before sharing them.
 
-Opening a trace file can raise normally. If writing fails after recording starts, the library warns, stops recording, and preserves the tool's result or exception. Check `trace.logging_errors`; a partial recording is not a complete run. See the [format and lifecycle contract](docs/TRACE_FORMAT.md).
+Opening a trace file can raise normally. If writing fails or the 20 MiB recording limit is reached, the library warns, stops recording, and preserves the tool's result or exception. Check `trace.logging_errors`; a partial recording is not a complete run. Prefer one session per task. See the [format and lifecycle contract](docs/TRACE_FORMAT.md).
 
 ## CLI contract
 
@@ -104,13 +108,13 @@ Opening a trace file can raise normally. If writing fails after recording starts
 | `compare BEFORE AFTER --output DIR` | Compare two v1 runs |
 | `run --output DIR` | Retained v0.1 synthetic executor lessons, using a separate format |
 
-`inspect` accepts `--max-calls`, `--max-errors`, and `--max-duration-ms`. Handled tool errors are measurements until an error budget is set. Failed application runs and incomplete/corrupted traces fail their audit.
+`inspect` accepts `--max-calls`, `--max-errors`, `--max-cancelled`, and `--max-duration-ms`. Handled tool errors/cancellations are measurements until their budget is set. Failed application runs and incomplete/corrupted traces fail their audit.
 
-`compare` allows no extra calls or errors by default. Configure `--max-extra-calls` or `--max-extra-errors` when needed. Duration checks are opt-in with `--max-duration-ratio`; use the same inputs and account for timing noise.
+`compare` allows no extra calls, errors, or cancellations by default. Configure `--max-extra-calls`, `--max-extra-errors`, or `--max-extra-cancelled` when needed. `--per-tool` applies these same tolerances to each named tool as well as the totals. Without it, a decrease in one tool can offset an increase in another; the report still shows each tool's changes. Duration checks are opt-in with `--max-duration-ratio` and apply to total run duration; use the same inputs and account for timing noise.
 
 Exit codes: `0` = checks passed or demo generated; `1` = checks/regression failed; `2` = invalid input or I/O. Output directories contain `report.html` and `report.json`.
 
-Import supports this project's documented v1 JSONL format, one run per file. Vendor traces need adapters. Input limits are 1 MiB per line and 20 MiB per file, with strict UTF-8 and finite JSON values. The old `run` command emits a separate synthetic format; use `demo` for v1 recordings.
+Import supports this project's documented v1 JSONL format, one run per file. Vendor traces need adapters. Input limits are 1 MiB per line, 20 MiB per file, and 32 JSON nesting levels, with valid Unicode and finite JSON values. The old `run` command emits a separate synthetic format; use `demo` for v1 recordings.
 
 ## Verification and code map
 
@@ -129,13 +133,15 @@ Tests cover real I/O, async/threaded/nested calls, exception identity, cancellat
 | Real-call demonstration | `agent_trace_lab/demo.py` |
 | Synthetic executor lessons | `engine.py`, `runner.py`, `scenarios.py`; [guide](docs/SYNTHETIC_LAB.md) |
 
-The [learning path](docs/LEARNING_PATH.zh-CN.md) connects this work to OpenAI Agents SDK, LangGraph, MCP, and Inspect AI through concrete exercises. These integrations are planned, not existing compatibility claims. Small reproducible bugs, documented failure traces, and focused optional adapters are welcome.
+The [real MCP example](examples/mcp_document_search/README.md) runs a local stdio server and client, searches documents, and demonstrates why MCP `isError` responses need an explicit adapter to count as tool errors. It uses an optional, pinned SDK; no model calls are made. [Validation evidence](docs/VALIDATION.md) covers fault detection and local recorder overhead, with reproduction commands and limits.
+
+The [learning path](docs/LEARNING_PATH.zh-CN.md) also links OpenAI Agents SDK, LangGraph, and Inspect AI to concrete exercises. Those framework integrations remain future work. Small reproducible bugs, documented failure traces, and focused optional adapters are welcome.
 
 ## 中文简介
 
 给自己的 Python 工具函数加上 `@trace.tool()`，记录真实耗时、异常和嵌套关系；生成本地交互报告，检查调用次数与错误预算，并比较修改前后的运行。默认不采集参数和结果，无需模型密钥。
 
-首个目标是让 Agent 执行问题可复现、可解释。先接入你自己的一个工具，再尝试 MCP 服务或 Agent 框架的事件适配。多模态证据追踪和真实模型集成属于后续工作。
+先看[中文上手教程](docs/QUICKSTART.zh-CN.md)，或运行真实 MCP 文档搜索案例，观察“请求返回了，但工具其实失败”的排错过程。多模态证据追踪和真实模型集成属于后续工作。
 
 ## License
 

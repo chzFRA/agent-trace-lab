@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-10-01
+
+- Add a real optional MCP stdio document-search integration and executable fault-detection acceptance checks.
+- Expose MCP `isError` failures through an explicit example adapter, with a raw-client comparison proving why it is needed.
+- Show changes by named tool; add opt-in per-tool regression checks and cancellation budgets.
+- Make parent tool names readable in HTML reports and add a Chinese first-use tutorial.
+- Preserve initial recording errors if cleanup also fails; stop recording before unsupported file sizes while preserving tool outcomes.
+- Reject inconsistent capture policies, impossible durations, malformed Unicode, and deeply nested trace inputs.
+- Add focused reliability/CLI regressions and a reproducible local overhead measurement script.
+
 ## 0.2.0 — 2026-09-30
 
 - Record real synchronous, asynchronous, nested, and threaded Python calls.

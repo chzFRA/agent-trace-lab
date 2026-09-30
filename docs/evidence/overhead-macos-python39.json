@@ -1,0 +1,316 @@
+{
+  "python": "3.9.6",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "package_version": "0.3.0",
+  "source_sha256": {
+    "tracing.py": "6cd0b4fd091bbae14ec417524e58eb3f325bbbbc322e0f294fd57f2edab71908",
+    "limits.py": "e4e583bf2fbf914a7212ccc2d1145aba6976886d9cb89f0f1855f1794b6f931c"
+  },
+  "repeats": 5,
+  "loader_limit_bytes": 20971520,
+  "results": [
+    {
+      "workload": "no_delay",
+      "mode": "untraced",
+      "calls_per_sample": 1000,
+      "simulated_delay_ms": 0,
+      "median_us_per_call": 0.032542,
+      "min_us_per_call": 0.030833,
+      "max_us_per_call": 0.033459,
+      "extra_us_per_call_vs_untraced": 0.0,
+      "ratio_vs_untraced": 1.0,
+      "median_bytes_per_call": 0,
+      "samples": [
+        {
+          "calls": 1000,
+          "elapsed_ms": 0.033459,
+          "us_per_call": 0.033459,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 0.030833,
+          "us_per_call": 0.030833,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 0.032583,
+          "us_per_call": 0.032583,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 0.032291,
+          "us_per_call": 0.032291,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 0.032542,
+          "us_per_call": 0.032542,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        }
+      ]
+    },
+    {
+      "workload": "no_delay",
+      "mode": "default",
+      "calls_per_sample": 1000,
+      "simulated_delay_ms": 0,
+      "median_us_per_call": 15.929292,
+      "min_us_per_call": 15.111709000000001,
+      "max_us_per_call": 16.207375,
+      "extra_us_per_call_vs_untraced": 15.89675,
+      "ratio_vs_untraced": 489.4994775981808,
+      "median_bytes_per_call": 508.249,
+      "samples": [
+        {
+          "calls": 1000,
+          "elapsed_ms": 15.111709,
+          "us_per_call": 15.111709000000001,
+          "trace_bytes": 508257,
+          "bytes_per_call": 508.257
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 16.013875,
+          "us_per_call": 16.013875,
+          "trace_bytes": 508275,
+          "bytes_per_call": 508.275
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 15.244625,
+          "us_per_call": 15.244625,
+          "trace_bytes": 508249,
+          "bytes_per_call": 508.249
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 16.207375,
+          "us_per_call": 16.207375,
+          "trace_bytes": 508237,
+          "bytes_per_call": 508.237
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 15.929292,
+          "us_per_call": 15.929292,
+          "trace_bytes": 508092,
+          "bytes_per_call": 508.092
+        }
+      ]
+    },
+    {
+      "workload": "no_delay",
+      "mode": "capture",
+      "calls_per_sample": 1000,
+      "simulated_delay_ms": 0,
+      "median_us_per_call": 29.025292,
+      "min_us_per_call": 28.287125,
+      "max_us_per_call": 32.373542,
+      "extra_us_per_call_vs_untraced": 28.99275,
+      "ratio_vs_untraced": 891.9332554852191,
+      "median_bytes_per_call": 668.227,
+      "samples": [
+        {
+          "calls": 1000,
+          "elapsed_ms": 29.443417,
+          "us_per_call": 29.443417,
+          "trace_bytes": 668254,
+          "bytes_per_call": 668.254
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 29.025292,
+          "us_per_call": 29.025292,
+          "trace_bytes": 668285,
+          "bytes_per_call": 668.285
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 28.673375,
+          "us_per_call": 28.673375,
+          "trace_bytes": 668175,
+          "bytes_per_call": 668.175
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 32.373542,
+          "us_per_call": 32.373542,
+          "trace_bytes": 668213,
+          "bytes_per_call": 668.213
+        },
+        {
+          "calls": 1000,
+          "elapsed_ms": 28.287125,
+          "us_per_call": 28.287125,
+          "trace_bytes": 668227,
+          "bytes_per_call": 668.227
+        }
+      ]
+    },
+    {
+      "workload": "simulated_wait",
+      "mode": "untraced",
+      "calls_per_sample": 200,
+      "simulated_delay_ms": 1.0,
+      "median_us_per_call": 1258.227085,
+      "min_us_per_call": 1254.719375,
+      "max_us_per_call": 1261.43896,
+      "extra_us_per_call_vs_untraced": 0.0,
+      "ratio_vs_untraced": 1.0,
+      "median_bytes_per_call": 0,
+      "samples": [
+        {
+          "calls": 200,
+          "elapsed_ms": 250.943875,
+          "us_per_call": 1254.719375,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 252.287792,
+          "us_per_call": 1261.43896,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 251.645417,
+          "us_per_call": 1258.227085,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 251.559917,
+          "us_per_call": 1257.799585,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 252.038209,
+          "us_per_call": 1260.191045,
+          "trace_bytes": 0,
+          "bytes_per_call": 0
+        }
+      ]
+    },
+    {
+      "workload": "simulated_wait",
+      "mode": "default",
+      "calls_per_sample": 200,
+      "simulated_delay_ms": 1.0,
+      "median_us_per_call": 1360.8002099999999,
+      "min_us_per_call": 1351.11854,
+      "max_us_per_call": 1372.8364550000001,
+      "extra_us_per_call_vs_untraced": 102.57312499999989,
+      "ratio_vs_untraced": 1.0815219495930657,
+      "median_bytes_per_call": 505.205,
+      "samples": [
+        {
+          "calls": 200,
+          "elapsed_ms": 272.160042,
+          "us_per_call": 1360.8002099999999,
+          "trace_bytes": 101029,
+          "bytes_per_call": 505.145
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 270.223708,
+          "us_per_call": 1351.11854,
+          "trace_bytes": 101033,
+          "bytes_per_call": 505.165
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 274.567291,
+          "us_per_call": 1372.8364550000001,
+          "trace_bytes": 101042,
+          "bytes_per_call": 505.21
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 271.752667,
+          "us_per_call": 1358.7633349999999,
+          "trace_bytes": 101041,
+          "bytes_per_call": 505.205
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 272.454375,
+          "us_per_call": 1362.271875,
+          "trace_bytes": 101045,
+          "bytes_per_call": 505.225
+        }
+      ]
+    },
+    {
+      "workload": "simulated_wait",
+      "mode": "capture",
+      "calls_per_sample": 200,
+      "simulated_delay_ms": 1.0,
+      "median_us_per_call": 1420.4447949999999,
+      "min_us_per_call": 1413.924375,
+      "max_us_per_call": 1464.11104,
+      "extra_us_per_call_vs_untraced": 162.2177099999999,
+      "ratio_vs_untraced": 1.128925622356953,
+      "median_bytes_per_call": 665.19,
+      "samples": [
+        {
+          "calls": 200,
+          "elapsed_ms": 283.3625,
+          "us_per_call": 1416.8125,
+          "trace_bytes": 133031,
+          "bytes_per_call": 665.155
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 292.822208,
+          "us_per_call": 1464.11104,
+          "trace_bytes": 133046,
+          "bytes_per_call": 665.23
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 290.616875,
+          "us_per_call": 1453.084375,
+          "trace_bytes": 133038,
+          "bytes_per_call": 665.19
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 282.784875,
+          "us_per_call": 1413.924375,
+          "trace_bytes": 133030,
+          "bytes_per_call": 665.15
+        },
+        {
+          "calls": 200,
+          "elapsed_ms": 284.088959,
+          "us_per_call": 1420.4447949999999,
+          "trace_bytes": 133048,
+          "bytes_per_call": 665.24
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Local single-thread observation; not a throughput or durability guarantee.",
+    "No LLM/network calls. The delay uses time.sleep, whose scheduling varies.",
+    "Setup/close and report generation are outside the timed call loop.",
+    "Call timing includes Python instrumentation, synchronous file writes and flushes.",
+    "File bytes include two run boundary events; no fsync is performed.",
+    "Medians are compared across independent samples; tiny tools magnify overhead ratios.",
+    "Results depend on hardware, filesystem, load, payload size, and Python version."
+  ]
+}

@@ -30,4 +30,19 @@ jobs:
       - name: Verify recorded candidate
         run: python -m agent_trace_lab inspect artifacts/demo/candidate.jsonl --max-calls 4 --max-errors 0 --output artifacts/check
       - name: Compare actual runs
-        run: python -m agent_trace_lab compare artifacts/demo/baseline.jsonl artifacts/demo/candidate.jsonl --output artifacts/comparison
+        run: python -m agent_trace_lab compare artifacts/demo/baseline.jsonl artifacts/demo/candidate.jsonl --per-tool --output artifacts/comparison
+
+  mcp-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install optional pinned MCP SDK
+        run: python -m pip install -r examples/mcp_document_search/requirements.txt
+      - name: Verify real stdio client and server
+        run: python examples/mcp_document_search/run.py verify --output artifacts/mcp-acceptance
